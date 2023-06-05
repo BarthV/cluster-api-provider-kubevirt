@@ -24,9 +24,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "sigs.k8s.io/cluster-api-provider-kubevirt/api/v1alpha1"
@@ -37,6 +39,7 @@ import (
 // Machine implement a service for managing the KubeVirt VM hosting a kubernetes node.
 type Machine struct {
 	client         client.Client
+	restConfig     *rest.Config
 	namespace      string
 	machineContext *context.MachineContext
 	vmiInstance    *kubevirtv1.VirtualMachineInstance
@@ -47,9 +50,10 @@ type Machine struct {
 }
 
 // NewMachine returns a new Machine service for the given context.
-func NewMachine(ctx *context.MachineContext, client client.Client, namespace string, sshKeys *ssh.ClusterNodeSshKeys) (*Machine, error) {
+func NewMachine(ctx *context.MachineContext, client client.Client, namespace string, restConfig *rest.Config, sshKeys *ssh.ClusterNodeSshKeys) (*Machine, error) {
 	machine := &Machine{
 		client:             client,
+		restConfig:         restConfig,
 		namespace:          namespace,
 		machineContext:     ctx,
 		vmiInstance:        nil,
@@ -235,7 +239,8 @@ func (m *Machine) IsBootstrapped() bool {
 	case "":
 		fallthrough // ssh is default check strategy, fallthrough
 	case "ssh":
-		return m.IsBootstrappedWithSSH()
+		_ = m.IsBootstrappedWithSSH()
+		return m.IsBootstrappedWithGuestAgent()
 
 	default:
 		// Since CRD CheckStrategy field is validated by an enum, this case should never be hit
@@ -256,6 +261,91 @@ func (m *Machine) IsBootstrappedWithSSH() bool {
 		return false
 	}
 	return true
+}
+
+// IsBootstrappedWithGuestAgent checks if the VM is bootstrapped through qemu guest agent.
+func (m *Machine) IsBootstrappedWithGuestAgent() bool {
+	// vmiInstance must exists to proceed
+	if !m.IsReady() && m.vmiInstance != nil {
+		return false
+	}
+
+	// Ensure vmi is referencing a single activePod only
+	if len(m.vmiInstance.Status.ActivePods) != 1 {
+		m.machineContext.Logger.Info("VM has no activePod or is currently being migrated")
+		return false
+	}
+
+	// Save this unique activePod UID for later
+	var activePodUid types.UID
+	for uid := range m.vmiInstance.Status.ActivePods {
+		activePodUid = uid
+	}
+
+	// Ensure guest agent is supported, available & reporting in vmiInstance status
+	guestAgentAvailable := false
+	guestAgentUnsupported := false
+	for _, condition := range m.vmiInstance.Status.Conditions {
+		if condition.Type == kubevirtv1.VirtualMachineInstanceAgentConnected && condition.Status == corev1.ConditionTrue {
+			m.machineContext.Logger.Info("VM is not running qemu-guest-agent or agent is not detected yet")
+			guestAgentAvailable = true
+		}
+
+		if condition.Type == kubevirtv1.VirtualMachineInstanceUnsupportedAgent && condition.Status == corev1.ConditionTrue {
+			m.machineContext.Logger.Info("VM is running an unsupported qemu-guest-agent")
+			guestAgentUnsupported = true
+		}
+	}
+
+	if !guestAgentAvailable || guestAgentUnsupported {
+		return false
+	}
+
+	// Fetch virt-launcher pod running the VM
+	podList := &corev1.PodList{}
+	podListOpts := []client.ListOption{
+		client.InNamespace(m.vmiInstance.Namespace),
+		client.MatchingLabels(map[string]string{
+			infrav1.KubevirtMachineNameLabel:      m.machineContext.KubevirtMachine.Name,
+			infrav1.KubevirtMachineNamespaceLabel: m.machineContext.KubevirtMachine.Namespace,
+		}),
+	}
+
+	err := m.client.List(m.machineContext.Context, podList, podListOpts...)
+	if err != nil {
+		fmt.Println("error listing pods matching VM options")
+		return false
+	}
+
+	// Ensure there is only a single pod matching VM labels
+	if len(podList.Items) != 1 {
+		m.machineContext.Logger.Info("List returned none or multiple pods matching VM")
+		return false
+	}
+	p := podList.Items[0]
+
+	// Reject returned pod on unmatching pod.meta.UID
+	if p.UID != activePodUid {
+		m.machineContext.Logger.Info("Pod running machine VM has an unexpected UID")
+		return false
+	}
+
+	// Execute qemu-guest-agent command inside identified pod attached to vmi
+	// vmiDomainName := fmt.Sprintf("%s_%s", m.vmiInstance.Namespace, m.vmiInstance.Name)
+	// execAction := &corev1.ExecAction{
+	// 	Command: []string{
+	// 		"virt-probe",
+	// 		"--command",
+	// 		"cat",
+	// 		"/run/cluster-api/bootstrap-success.complete",
+	// 		"--domainName",
+	// 		vmiDomainName,
+	// 	},
+	// }
+
+	restIface, err := apiutil.RESTClientForGVK(p.GroupVersionKind(), false, m.restConfig)
+
+	return false
 }
 
 // GenerateProviderID generates the KubeVirt provider ID to be used for the NodeRef
