@@ -63,6 +63,8 @@ type KubevirtMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=kubevirtmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=kubevirtmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;machines,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods;,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods/exec;,verbs=create
 // +kubebuilder:rbac:groups="",resources=secrets;,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kubevirt.io,resources=virtualmachines;,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=kubevirt.io,resources=virtualmachineinstances;,verbs=get;list;watch
@@ -220,7 +222,7 @@ func (r *KubevirtMachineReconciler) reconcileNormal(ctx *context.MachineContext)
 		ctx.KubevirtMachine.Spec.InfraClusterSecretRef = ctx.KubevirtCluster.Spec.InfraClusterSecretRef
 	}
 
-	infraClusterClient, infraClusterNamespace, err := r.InfraCluster.GenerateInfraClusterClient(ctx.KubevirtMachine.Spec.InfraClusterSecretRef, ctx.KubevirtMachine.Namespace, ctx.Context)
+	infraClusterClient, infraClusterNamespace, infraClusterConfig, err := r.InfraCluster.GenerateInfraClusterClient(ctx.KubevirtMachine.Spec.InfraClusterSecretRef, ctx.KubevirtMachine.Namespace, ctx.Context)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, errors.Wrap(err, "failed to generate infra cluster client")
 	}
@@ -288,6 +290,8 @@ func (r *KubevirtMachineReconciler) reconcileNormal(ctx *context.MachineContext)
 		ctx.KubevirtMachine.Status.Ready = false
 		return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 	}
+
+	fmt.Println(infraClusterConfig)
 
 	if externalMachine.SupportsCheckingIsBootstrapped() && !conditions.IsTrue(ctx.KubevirtMachine, infrav1.BootstrapExecSucceededCondition) {
 		if !externalMachine.IsBootstrapped() {
@@ -395,7 +399,7 @@ func (r *KubevirtMachineReconciler) reconcileDelete(ctx *context.MachineContext)
 		return ctrl.Result{}, err
 	}
 
-	infraClusterClient, infraClusterNamespace, err := r.InfraCluster.GenerateInfraClusterClient(ctx.KubevirtMachine.Spec.InfraClusterSecretRef, ctx.KubevirtMachine.Namespace, ctx.Context)
+	infraClusterClient, infraClusterNamespace, _, err := r.InfraCluster.GenerateInfraClusterClient(ctx.KubevirtMachine.Spec.InfraClusterSecretRef, ctx.KubevirtMachine.Namespace, ctx.Context)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, errors.Wrap(err, "failed to generate infra cluster client")
 	}

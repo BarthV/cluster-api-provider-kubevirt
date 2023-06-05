@@ -45,10 +45,12 @@ var _ = Describe("InfraCluster", func() {
 		fakeClient = fake.NewClientBuilder().WithScheme(testing.SetupScheme()).Build()
 
 		infraCluster := New(fakeClient)
-		infraClient, infraNamespace, err := infraCluster.GenerateInfraClusterClient(nil, ownerNamespace, nil)
+		infraClient, infraNamespace, infraRestConfig, err := infraCluster.GenerateInfraClusterClient(nil, ownerNamespace, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(infraClient).To(BeIdenticalTo(fakeClient))
 		Expect(infraNamespace).To(Equal(ownerNamespace))
+		Expect(infraRestConfig.Host).To(Equal(""))
+		Expect(infraRestConfig.Username).To(Equal(""))
 	})
 
 	It("should failed when the referenced infrastructure secret cannot be found", func() {
@@ -61,7 +63,7 @@ var _ = Describe("InfraCluster", func() {
 		}
 		infraCluster := New(fakeClient)
 
-		_, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
+		_, _, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
 		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
 
@@ -82,7 +84,7 @@ var _ = Describe("InfraCluster", func() {
 		}
 
 		infraCluster := New(fakeClient)
-		_, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
+		_, _, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("failed to retrieve infra kubeconfig from secret: 'kubeconfig' key is missing"))
 	})
@@ -106,7 +108,7 @@ var _ = Describe("InfraCluster", func() {
 		}
 
 		infraCluster := New(fakeClient)
-		_, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
+		_, _, _, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("failed to create K8s-API client config"))
 	})
@@ -136,11 +138,13 @@ var _ = Describe("InfraCluster", func() {
 			func(config *rest.Config, options k8sclient.Options) (k8sclient.Client, error) {
 				return fakeInfraClient, nil
 			},
+			&rest.Config{},
 		)
-		infraClient, namespace, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
+		infraClient, namespace, infraRestConfig, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(infraClient).To(BeIdenticalTo(fakeInfraClient))
 		Expect(namespace).To(Equal("Shire"))
+		Expect(infraRestConfig.Host).To(Equal("https://gondor.com"))
 	})
 
 	It("should return the infra-client and kubeconfig namespace when the secret doesn't specified one", func() {
@@ -167,11 +171,13 @@ var _ = Describe("InfraCluster", func() {
 			func(config *rest.Config, options k8sclient.Options) (k8sclient.Client, error) {
 				return fakeInfraClient, nil
 			},
+			&rest.Config{},
 		)
-		infraClient, namespace, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
+		infraClient, namespace, infraRestConfig, err := infraCluster.GenerateInfraClusterClient(infraClusterSecretRef, ownerNamespace, nil)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(infraClient).To(BeIdenticalTo(fakeInfraClient))
 		Expect(namespace).To(Equal("minastirith"))
+		Expect(infraRestConfig.Host).To(Equal("https://gondor.com"))
 	})
 
 })

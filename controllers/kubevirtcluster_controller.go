@@ -54,7 +54,7 @@ type KubevirtClusterReconciler struct {
 	Log          logr.Logger
 }
 
-func GetLoadBalancerNamespace(kc *infrav1.KubevirtCluster, infraClusterNamespace string ) string {
+func GetLoadBalancerNamespace(kc *infrav1.KubevirtCluster, infraClusterNamespace string) string {
 	// Use namespace specified in Service Template if exist
 	if kc.Spec.ControlPlaneServiceTemplate.ObjectMeta.Namespace != "" {
 		return kc.Spec.ControlPlaneServiceTemplate.ObjectMeta.Namespace
@@ -106,7 +106,7 @@ func (r *KubevirtClusterReconciler) Reconcile(goctx gocontext.Context, req ctrl.
 		Logger:          ctrl.LoggerFrom(goctx).WithName(req.Namespace).WithName(req.Name),
 	}
 
-	infraClusterClient, infraClusterNamespace, err := r.InfraCluster.GenerateInfraClusterClient(kubevirtCluster.Spec.InfraClusterSecretRef, kubevirtCluster.Namespace, goctx)
+	infraClusterClient, infraClusterNamespace, _, err := r.InfraCluster.GenerateInfraClusterClient(kubevirtCluster.Spec.InfraClusterSecretRef, kubevirtCluster.Namespace, goctx)
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, errors.Wrap(err, "failed to generate infra cluster client")
 	}

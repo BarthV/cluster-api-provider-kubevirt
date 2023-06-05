@@ -10,6 +10,7 @@ import (
 
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/rest"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -37,13 +38,14 @@ func (m *MockInfraCluster) EXPECT() *MockInfraClusterMockRecorder {
 }
 
 // GenerateInfraClusterClient mocks base method.
-func (m *MockInfraCluster) GenerateInfraClusterClient(infraClusterSecretRef *v1.ObjectReference, ownerNamespace string, context context.Context) (client.Client, string, error) {
+func (m *MockInfraCluster) GenerateInfraClusterClient(infraClusterSecretRef *v1.ObjectReference, ownerNamespace string, context context.Context) (client.Client, string, *rest.Config, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GenerateInfraClusterClient", infraClusterSecretRef, ownerNamespace, context)
 	ret0, _ := ret[0].(client.Client)
 	ret1, _ := ret[1].(string)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
+	ret2, _ := ret[2].(*rest.Config)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
 // GenerateInfraClusterClient indicates an expected call of GenerateInfraClusterClient.

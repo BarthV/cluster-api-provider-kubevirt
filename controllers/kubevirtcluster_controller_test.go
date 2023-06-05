@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/rest"
 	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
 	. "sigs.k8s.io/controller-runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -28,6 +29,7 @@ var (
 	kubeconfigNamespace       string
 	cluster                   *clusterv1.Cluster
 	fakeClient                client.Client
+	fakeRestConfig            *rest.Config
 	kubevirtClusterReconciler controllers.KubevirtClusterReconciler
 	fakeContext               = goContext.TODO()
 	testLogger                = ctrl.Log.WithName("test")
@@ -61,6 +63,7 @@ var _ = Describe("Reconcile", func() {
 				kubevirtCluster,
 			}
 			fakeClient = fake.NewClientBuilder().WithScheme(testing.SetupScheme()).WithObjects(objects...).Build()
+			fakeRestConfig = &rest.Config{}
 		})
 
 		AfterEach(func() {})
@@ -71,7 +74,7 @@ var _ = Describe("Reconcile", func() {
 				kubevirtCluster,
 			}
 			setupClient(objects)
-			infraClusterMock.EXPECT().GenerateInfraClusterClient(gomock.Any(), gomock.Any(), gomock.Any()).Return(fakeClient, kubevirtCluster.Namespace, nil)
+			infraClusterMock.EXPECT().GenerateInfraClusterClient(gomock.Any(), gomock.Any(), gomock.Any()).Return(fakeClient, kubevirtCluster.Namespace, fakeRestConfig, nil)
 
 			result, err := kubevirtClusterReconciler.Reconcile(fakeContext, Request{
 				NamespacedName: client.ObjectKey{
@@ -126,7 +129,7 @@ var _ = Describe("Reconcile", func() {
 				kubevirtCluster,
 			}
 			setupClient(objects)
-			infraClusterMock.EXPECT().GenerateInfraClusterClient(gomock.Any(), gomock.Any(), gomock.Any()).Return(fakeClient, kubevirtCluster.Namespace, nil)
+			infraClusterMock.EXPECT().GenerateInfraClusterClient(gomock.Any(), gomock.Any(), gomock.Any()).Return(fakeClient, kubevirtCluster.Namespace, fakeRestConfig, nil)
 
 			_, err := kubevirtClusterReconciler.Reconcile(fakeContext, Request{
 				NamespacedName: client.ObjectKey{

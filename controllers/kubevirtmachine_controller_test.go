@@ -413,7 +413,7 @@ var _ = Describe("reconcile a kubevirt machine", func() {
 		//Check bootstrapData secret is deleted
 		machineBootstrapSecretReferenceName := machineContext.Machine.Spec.Bootstrap.DataSecretName
 		machineBootstrapSecretReferenceKey := client.ObjectKey{Namespace: machineContext.Machine.GetNamespace(), Name: *machineBootstrapSecretReferenceName + "-userdata"}
-		infraClusterClient, _, err := infraClusterMock.GenerateInfraClusterClient(kubevirtMachine.Spec.InfraClusterSecretRef, kubevirtMachine.Namespace, machineContext.Context)
+		infraClusterClient, _, _, err := infraClusterMock.GenerateInfraClusterClient(kubevirtMachine.Spec.InfraClusterSecretRef, kubevirtMachine.Namespace, machineContext.Context)
 		Expect(err).NotTo(HaveOccurred())
 		bootstrapDataSecret := &corev1.Secret{}
 		err = infraClusterClient.Get(gocontext.Background(), machineBootstrapSecretReferenceKey, bootstrapDataSecret)
@@ -478,7 +478,7 @@ var _ = Describe("reconcile a kubevirt machine", func() {
 
 		machineBootstrapSecretReferenceName := machineContext.Machine.Spec.Bootstrap.DataSecretName
 		machineBootstrapSecretReferenceKey := client.ObjectKey{Namespace: machineContext.Machine.GetNamespace(), Name: *machineBootstrapSecretReferenceName + "-userdata"}
-		infraClusterClient, _, err := infraClusterMock.GenerateInfraClusterClient(kubevirtMachine.Spec.InfraClusterSecretRef, kubevirtMachine.Namespace, machineContext.Context)
+		infraClusterClient, _, _, err := infraClusterMock.GenerateInfraClusterClient(kubevirtMachine.Spec.InfraClusterSecretRef, kubevirtMachine.Namespace, machineContext.Context)
 		Expect(err).NotTo(HaveOccurred())
 
 		bootstrapDataSecret := &corev1.Secret{}
